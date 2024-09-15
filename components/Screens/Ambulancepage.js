@@ -9,6 +9,7 @@ import doc3 from '../Images/doc3.png';
 import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'; // Import Firestore snapshot listener
 import { db } from '../../firebaseConfig';
 import SendIntentAndroid from 'react-native-send-intent';
+import { useFocusEffect } from '@react-navigation/native';
 
 
 const Ambulancepage = ({ navigation, route }) => {
@@ -40,39 +41,45 @@ const Ambulancepage = ({ navigation, route }) => {
     };
 
 
-    useEffect(() => {
-        const getDriverUpdate = async () => {
-            try {
-                const driverDocRef = doc(db, 'ambulances', driverId);
-                const docSnapshot = await getDoc(driverDocRef);
-
-                if (docSnapshot.exists()) {
-                    const ambulanceData = docSnapshot.data();
-                    const driverLat = ambulanceData.location[0];
-                    const driverLon = ambulanceData.location[1];
-
-                    // Patient's location (static for now, could also be dynamic)
-                    const patientLat = lat; // Replace with actual patient latitude
-                    const patientLon = long;  // Replace with actual patient longitude
-
-                    const newDistance = calculateDistance(patientLat, patientLon, driverLat, driverLon);
-                    const newTime = calculateTime(newDistance, 60); // Assume 60 km/h average speed
-
-                    setUpdatedDistance(newDistance);
-                    console.log("Updated Distance: " + newDistance);
-                    setUpdatedTime(newTime);
-                } else {
-                    Alert.alert('Error', 'Driver not found.');
+    useFocusEffect(
+        React.useCallback(() => {
+            const getDriverUpdate = async () => {
+                try {
+                    const driverDocRef = doc(db, 'ambulances', driverId);
+                    const docSnapshot = await getDoc(driverDocRef);
+    
+                    if (docSnapshot.exists()) {
+                        const ambulanceData = docSnapshot.data();
+                        const driverLat = ambulanceData.location[0];
+                        const driverLon = ambulanceData.location[1];
+    
+                        // Patient's location (static for now, could also be dynamic)
+                        const patientLat = lat; // Replace with actual patient latitude
+                        const patientLon = long;  // Replace with actual patient longitude
+    
+                        const newDistance = calculateDistance(patientLat, patientLon, driverLat, driverLon);
+                        const newTime = calculateTime(newDistance, 60); // Assume 60 km/h average speed
+    
+                        setUpdatedDistance(newDistance);
+                        console.log("Updated Distance: " + newDistance);
+                        setUpdatedTime(newTime);
+                    } else {
+                        Alert.alert('Error', 'Driver not found.');
+                    }
+                } catch (error) {
+                    Alert.alert('Error', 'Failed to fetch driver data.');
                 }
-            } catch (error) {
-                Alert.alert('Error', 'Failed to fetch driver data.');
-            }
-        };
+            };
+    
+            const intervalId = setInterval(() => {
+                getDriverUpdate();
+            }, 2000);
+    
+            return () => clearInterval(intervalId); // Cleanup interval when the component is unfocused
+        }, [driverId, lat, long])
+    );
 
-        const intervalId = setInterval(() => {
-            getDriverUpdate();
-        }, 2000);
-
+    useFocusEffect(()=>{
         const handleBackPress = () => {
             Alert.alert(
                 "Back Button Pressed",
@@ -94,10 +101,10 @@ const Ambulancepage = ({ navigation, route }) => {
 
         // Cleanup interval and back button event listener on component unmount
         return () => {
-            clearInterval(intervalId);
+           
             BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
         };
-    }, [driverId]);
+    })
 
 
 
@@ -205,7 +212,9 @@ const Ambulancepage = ({ navigation, route }) => {
                         </View>
                     </View>
                     <View style={styles.contactIcons}>
-                        <TouchableOpacity style={styles.iconButton}>
+                        <TouchableOpacity style={styles.iconButton} onPress={()=>{
+                            Alert.alert("Note","Message service is unavailable")
+                        }}>
                             <Text style={styles.icon}>💬</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.iconButton} onPress={() => { InitiateCall(phonenumber) }}>
@@ -272,7 +281,7 @@ const styles = StyleSheet.create({
         // backgroundColor: '#1F1E30',
     },
     btn: {
-        paddingVertical: 10,
+        paddingVertical: 7,
         // paddingHorizontal:20,
         width: 150,
         borderWidth: 1.5,

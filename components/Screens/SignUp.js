@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native';
-import { auth } from '../../firebaseConfig'; // Import auth from Firebase config
-import { createUserWithEmailAndPassword } from 'firebase/auth'; // Import function to create a user
+import { auth, db } from '../../firebaseConfig'; // Import firestore
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore'; // Import Firestore functions
 import ambulance from '../Images/ambulance.png';
 
 const SignUp = ({ navigation }) => {
@@ -16,8 +17,22 @@ const SignUp = ({ navigation }) => {
     }
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      console.log('Account created successfully');
+      // Create user with email and password
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Initialize default values for the patient document
+      const patientData = {
+        disease: '', // String
+        emergencyLevel: 5, // Number
+        location: [13.432, 24321.325], // Array with two numbers
+        symptoms: '' // String
+      };
+
+      // Create a document in 'patients' collection with the user's UID as the document ID
+      await setDoc(doc(db, 'patients', user.uid), patientData);
+
+      console.log('Account and patient document created successfully');
       navigation.navigate("Home");
     } catch (error) {
       console.error('Error signing up:', error.message);

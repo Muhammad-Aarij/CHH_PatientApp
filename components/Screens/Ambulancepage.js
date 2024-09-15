@@ -1,18 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, Alert, BackHandler } from 'react-native';
+import { PermissionsAndroid } from 'react-native';
 import map from '../Images/map.png';
 import driver from '../Images/driver.png';
 import doc1 from '../Images/doc1.png';
 import doc2 from '../Images/doc2.png';
 import doc3 from '../Images/doc3.png';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore'; // Import Firestore snapshot listener
+import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'; // Import Firestore snapshot listener
 import { db } from '../../firebaseConfig';
+import SendIntentAndroid from 'react-native-send-intent';
+
 
 const Ambulancepage = ({ navigation, route }) => {
-    const { driverName, distance, time, driverId } = route.params;
-    console.log("ID"+ driverId);
+    const { driverName, distance, time, driverId, disease, phonenumber, long, lat } = route.params;
+    console.log("ID" + driverId);
     const [updatedDistance, setUpdatedDistance] = useState(distance);
     const [updatedTime, setUpdatedTime] = useState(time);
+
+    const InitiateCall = async (numb) => {
+        if (Platform.OS === 'android') {
+            const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.CALL_PHONE,
+                {
+                    title: 'App Needs Permission',
+                    message: `Myapp needs phone call permission to dial directly`,
+                    buttonNegative: 'Disagree',
+                    buttonPositive: 'Agree',
+                }
+            );
+
+            if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                SendIntentAndroid.sendPhoneCall(numb, true);
+            } else {
+                console.log('No permission');
+            }
+        } else if (Platform.OS === 'ios') {
+            Linking.openURL(`tel:${numb}`);
+        }
+    };
+
 
     useEffect(() => {
         const getDriverUpdate = async () => {
@@ -26,13 +52,14 @@ const Ambulancepage = ({ navigation, route }) => {
                     const driverLon = ambulanceData.location[1];
 
                     // Patient's location (static for now, could also be dynamic)
-                    const patientLat = 33.5985317; // Replace with actual patient latitude
-                    const patientLon = 73.154444;  // Replace with actual patient longitude
+                    const patientLat = lat; // Replace with actual patient latitude
+                    const patientLon = long;  // Replace with actual patient longitude
 
                     const newDistance = calculateDistance(patientLat, patientLon, driverLat, driverLon);
                     const newTime = calculateTime(newDistance, 60); // Assume 60 km/h average speed
 
                     setUpdatedDistance(newDistance);
+                    console.log("Updated Distance: " + newDistance);
                     setUpdatedTime(newTime);
                 } else {
                     Alert.alert('Error', 'Driver not found.');
@@ -42,8 +69,37 @@ const Ambulancepage = ({ navigation, route }) => {
             }
         };
 
-        getDriverUpdate();
+        const intervalId = setInterval(() => {
+            getDriverUpdate();
+        }, 2000);
+
+        const handleBackPress = () => {
+            Alert.alert(
+                "Back Button Pressed",
+                "Do you want to exit the app?",
+                [
+                    {
+                        text: "Cancel",
+                        onPress: () => null, // Do nothing
+                        style: "cancel"
+                    },
+                    { text: "OK", onPress: () => BackHandler.exitApp() } // Exit the app
+                ]
+            );
+            return true; // Prevent default back action
+        };
+
+        // Add event listener for back button
+        BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+        // Cleanup interval and back button event listener on component unmount
+        return () => {
+            clearInterval(intervalId);
+            BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+        };
     }, [driverId]);
+
+
 
     const calculateDistance = (lat1, lon1, lat2, lon2) => {
         const toRad = (value) => (value * Math.PI) / 180;
@@ -55,11 +111,32 @@ const Ambulancepage = ({ navigation, route }) => {
             Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // Distance in km
+        const distanceInKm = R * c; // Distance in km
+        const distanceInM = distanceInKm * 1000; // Convert km to meters
+        
+        return distanceInM;
     };
-
+    
+    const displayDistance = (distanceInM) => {
+        if (distanceInM >= 1000) {
+            return `${(distanceInM / 1000).toFixed(1)} km`;
+        } else {
+            return `${distanceInM.toFixed(0)} m`;
+        }
+    };
+    
     const calculateTime = (distance, averageSpeedKmph) => {
         return (distance / averageSpeedKmph) * 60; // Time in minutes
+    };
+    
+    const displayTime = (timeInMinutes) => {
+        if (timeInMinutes > 100) {
+            const hours = Math.floor(timeInMinutes / 60);
+            const minutes = Math.round(timeInMinutes % 60);
+            return `${hours} hr ${minutes} min`;
+        } else {
+            return `${Math.round(timeInMinutes)} min`;
+        }
     };
 
     const doctors = [
@@ -67,6 +144,27 @@ const Ambulancepage = ({ navigation, route }) => {
         { name: 'Dr. Ali Mughal', specialty: 'Cardiologist', rating: 4.1, image: doc1 },
         { name: 'Dr. Sameena Tahir', specialty: 'Cardiologist', rating: 4.0, image: doc3 },
     ];
+
+    const updateDriverStatus = async (status) => {
+        try {
+            const driverDocRef = doc(db, 'ambulances', driverId);
+            const docSnapshot = await getDoc(driverDocRef);
+
+            if (docSnapshot.exists()) {
+                await updateDoc(driverDocRef, {
+                    status: status, // Set driver status to the passed parameter
+                    patientLocation: [0, 0], // Reset patient location to [0, 0]
+                });
+                console.log('SuccessDriver status updated to  and patient location reset.');
+                navigation.goBack();
+            } else {
+                Alert.alert('Error', 'Driver not found.');
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to update driver data.' + error);
+        }
+    };
+
 
     return (
         <ScrollView style={styles.container}>
@@ -87,9 +185,9 @@ const Ambulancepage = ({ navigation, route }) => {
                 {/* Driving Info */}
                 <View style={styles.infoContainer}>
                     <Text style={styles.drivingText}>Driving to your destination</Text>
-                    <Text style={styles.distanceText}>{updatedDistance.toFixed(1)} <Text style={styles.drivingTextt}>km Away</Text></Text>
-                    <Text style={styles.timeTextt}>Arriving in {updatedTime.toFixed(0)} minutes</Text>
-                </View>
+                    <Text style={styles.distanceText}>{displayDistance(updatedDistance)}</Text>
+                    <Text style={styles.timeTextt}>Arriving in {displayTime(updatedTime)}</Text>
+                    </View>
 
                 {/* Driver Info */}
                 <View style={styles.driverContainer}>
@@ -110,11 +208,31 @@ const Ambulancepage = ({ navigation, route }) => {
                         <TouchableOpacity style={styles.iconButton}>
                             <Text style={styles.icon}>💬</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton}>
+                        <TouchableOpacity style={styles.iconButton} onPress={() => { InitiateCall(phonenumber) }}>
                             <Text style={styles.icon}>📞</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
+                <View style={{ width: "100%", alignItems: "flex-end", paddingHorizontal: 20, marginVertical: 5, }}>
+                    <TouchableOpacity onPress={() => {
+                        navigation.navigate('Remedy', { disease: disease });
+                    }}>
+                        <Text style={{ color: "#33ccee", fontFamily: "sans-serif-condensed" }}>+ Get Precautinary Measures</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={{ width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly", paddingHorizontal: 20, marginVertical: 10, }}>
+                    <TouchableOpacity style={styles.btn} onPress={() => updateDriverStatus("free")}>
+                        <Text style={styles.btnText}>
+                            Cancel
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={{ ...styles.btn, backgroundColor: "white" }} onPress={() => updateDriverStatus("free")}>
+                        <Text style={{ ...styles.btnText, color: "#1F1E30" }}>
+                            Complete
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
 
                 {/* Available Doctors Section */}
                 <Text style={styles.availableDoctorsText}>Available Doctors</Text>
@@ -153,6 +271,21 @@ const styles = StyleSheet.create({
         flex: 1,
         // backgroundColor: '#1F1E30',
     },
+    btn: {
+        paddingVertical: 10,
+        // paddingHorizontal:20,
+        width: 150,
+        borderWidth: 1.5,
+        borderColor: "white",
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    btnText: {
+        fontSize: 14,
+        fontFamily: "sans-serif-medium",
+        color: "white",
+    },
     mapImage: {
         width: '100%',
         height: 380,
@@ -176,12 +309,6 @@ const styles = StyleSheet.create({
     },
     timeTextt: {
         marginTop: 10,
-        // latitude
-        // 33.5985317
-        // (number)
-
-        // longitude
-        // 73.154444
         fontSize: 14,
         fontFamily: "sans-serif-light",
         // fontWeight: 'bold',

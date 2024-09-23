@@ -44,9 +44,9 @@ const SignIn = ({ navigation }) => {
       <TouchableOpacity style={styles.signInButton} onPress={handleSignIn}>
         <Text style={styles.signInButtonText}>Sign In</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+      {/* <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
       <View style={styles.signUpContainer}>
         <Text style={styles.signUpText}>Don't have an account?</Text>
         <TouchableOpacity onPress={() => navigation.navigate('signup')}>

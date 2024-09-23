@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, Alert, TextInput, Switch , StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, Alert, TextInput, Switch, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker'; // For disease picker
 import { getAuth, signOut } from 'firebase/auth'; // For user authentication
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions'; // For location permissions
@@ -7,8 +7,10 @@ import { getFirestore, doc, setDoc, getDocs, collection, query, where, updateDoc
 import Slider from '@react-native-community/slider'; // Emergency level slider
 import ambulance from '../Images/ambulance.png'; // Ambulance image
 import Geolocation from '@react-native-community/geolocation'; // Geolocation package
+// import Geolocation from 'react-native-geolocation-service';
 import out from '../Images/out.png'; // Sign out image
 import { db } from '../../firebaseConfig';
+import LoaderModal from './LoaderModal';
 
 const Homepage = ({ navigation }) => {
   const [disease, setDisease] = useState('Select');
@@ -20,6 +22,7 @@ const Homepage = ({ navigation }) => {
   const [toggle, setToggle] = useState(false);
   const [nearestAmbulanceId, setNearestAmbulanceId] = useState('');
   const [phonenumber, setphonenumber] = useState('');
+  const [locationUnabled, setLocationUnabled] = useState('');
 
   const auth = getAuth();
   const firestore = getFirestore();
@@ -28,70 +31,96 @@ const Homepage = ({ navigation }) => {
     getCoordinates();
   }, []);
 
+  useEffect(() => {
+    const locationchecker = () => {
+      if (toggle)
+        unableLocation();
+      else
+        getCoordinates();
+    };
+
+    locationchecker();
+  }, [toggle]);
+
   const getCoordinates = async () => {
-    Geolocation.getCurrentPosition(
-      (info) => {
-        const latitude = info.coords.latitude;
-        const longitude = info.coords.longitude;
-        setLat(latitude);
-        setLong(longitude);
-      },
-      (error) => {
-        console.log(error);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-    );
+    Geolocation.getCurrentPosition((info) => {
+      setTimeout(() => {
+        setLat(info.coords.latitude);
+        setLong(info.coords.longitude);
+        console.log("Latitude" + lat + " and Longitude" + long);
+      }, 2000);
+
+    });
   };
 
-  const handleSOS = async () => {
-    const user = auth.currentUser;
-
-    if (!user) {
-      Alert.alert('Authentication Required', 'You must be logged in to use the SOS feature.');
-      return;
-    }
-
+  const unableLocation = async () => {
     const permissionResult = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
-
+    setLocationUnabled(permissionResult == RESULTS.GRANTED);
+    console.log("Permission granted" + locationUnabled);
     if (permissionResult !== RESULTS.GRANTED) {
       Alert.alert('Location Permission Denied', 'Permission to access location was denied.');
       return;
     }
+  };
 
-    setLoading(true);
-
-    try {
-      console.log('Location fetched:', long, lat);
-
-      const nearestAmbulance = await findNearestAmbulance(lat, long);
-
-      if (nearestAmbulance) {
-        const userDoc = doc(db, 'patients', user.uid);
-        await setDoc(userDoc, {
-          disease,
-          symptoms,
-          emergencyLevel,
-          nearestAmbulance,
-          location: { long, lat },
-        });
-        
-        navigation.navigate('Reviews', {
-          driverName: nearestAmbulance.driverName,
-          distance: nearestAmbulance.distance,
-          time: nearestAmbulance.time,
-          driverId: nearestAmbulanceId,
-          disease: disease,
-          phonenumber:phonenumber,
-          long:long,
-          lat:lat,
-        });
-      } else {
-        Alert.alert('No Available Ambulances', 'No ambulances are available at the moment.');
+  const handleSOS = async () => {
+    if ((locationUnabled == true) && (toggle == true)) {
+      setLoading(true);
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert('Authentication Required', 'You must be logged in to use the SOS feature.');
+        return;
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to get location: ' + error.message);
-    } finally {
-      setLoading(false);
+      console.log("Auth: " + user.uid);
+      setLoading(true);
+
+      try {
+        console.log('Location fetched:', long, lat);
+        if (long != null && lat != null) {
+
+          const nearestAmbulance = await findNearestAmbulance(lat, long);
+
+          if (nearestAmbulance) {
+            const userDoc = doc(db, 'patients', user.uid);
+            await setDoc(userDoc, {
+              disease,
+              symptoms,
+              emergencyLevel,
+              nearestAmbulance,
+              location: { long, lat },
+            });
+
+            navigation.navigate('Reviews', {
+              driverName: nearestAmbulance.driverName,
+              distance: nearestAmbulance.distance,
+              time: nearestAmbulance.time,
+              driverId: nearestAmbulanceId,
+              disease: disease,
+              phonenumber: phonenumber,
+              long: long,
+              lat: lat,
+            });
+
+          } else {
+            setLoading(false);
+            Alert.alert('No Available Ambulances', 'No ambulances are available at the moment.');
+          }
+        }
+        else{
+          getCoordinates();
+          Alert.alert('Location Unavailable', 'Please try again');
+          return;
+        }
+      } catch (error) {
+        setLoading(false);
+        Alert.alert('Error', 'Failed to get location: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    else {
+      Alert.alert('Location Unavailable', 'Unable the Live Location');
+      return;
     }
   };
 
@@ -108,11 +137,25 @@ const Homepage = ({ navigation }) => {
 
       querySnapshot.forEach((doc) => {
         const ambulanceData = doc.data();
-        const latitude = ambulanceData.location[0];
-        const longitude = ambulanceData.location[1];
-        const number =ambulanceData.phoneNumber;
+        console.log("Ambulance Data: ", ambulanceData);
+
+        if (!ambulanceData.driverLocation) {
+          console.warn('Missing driverLocation for ambulance:', doc.id);
+          return;
+        }
+
+        const latitude = ambulanceData.driverLocation.latitude;
+        const longitude = ambulanceData.driverLocation.longitude;
+
+        if (latitude === undefined || longitude === undefined) {
+          console.warn('Missing latitude or longitude for ambulance:', doc.id);
+          return;
+        }
+
+        const number = ambulanceData.phoneNumber;
         setphonenumber(number);
-        console.log("Number: "+number);
+        console.log("Phone Number: ", number);
+
         const distance = calculateDistance(patientLat, patientLon, latitude, longitude);
         const time = calculateTime(distance, averageSpeedKmph);
 
@@ -131,7 +174,7 @@ const Homepage = ({ navigation }) => {
             latitude: lat,
             longitude: long,
           },
-        });        
+        });
       }
 
       return nearestAmbulance;
@@ -141,6 +184,7 @@ const Homepage = ({ navigation }) => {
       return null;
     }
   };
+
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const toRad = (value) => (value * Math.PI) / 180;
@@ -162,88 +206,93 @@ const Homepage = ({ navigation }) => {
 
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ alignItems: 'center' }}>
-      <Image source={ambulance} style={styles.headerImage} />
+    <>
+      {loading ?
+        <LoaderModal />
+        :
+        <ScrollView style={styles.container} contentContainerStyle={{ alignItems: 'center' }}>
+          <Image source={ambulance} style={styles.headerImage} />
 
-      <TouchableOpacity style={styles.sosButton} onPress={handleSOS}>
-        <Text style={styles.sosButtonText}>Execute SOS</Text>
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.sosButton} onPress={handleSOS}>
+            <Text style={styles.sosButtonText}>Execute SOS</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.signOutButton}
-        onPress={() => {
-          signOut(auth)
-            .then(() => {
-              console.log('User signed out successfully!');
-              navigation.navigate('Signin');
-            })
-            .catch((error) => {
-              console.error('Sign-out error: ', error);
-            });
-        }}
-      >
-        <Image style={styles.signOutButtonText} source={out} />
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={() => {
+              signOut(auth)
+                .then(() => {
+                  console.log('User signed out successfully!');
+                  navigation.navigate('Signin');
+                })
+                .catch((error) => {
+                  console.error('Sign-out error: ', error);
+                });
+            }}
+          >
+            <Image style={styles.signOutButtonText} source={out} />
+          </TouchableOpacity>
 
-      <View style={styles.switchContainer}>
-        <Text style={styles.switchLabel}>Share live location</Text>
-        <Switch
-          value={toggle}
-          onValueChange={() => setToggle(!toggle)}
-          thumbColor={toggle ? 'white' : '#f4f3f4'}
-          trackColor={{ false: '#767577', true: '#81b0ff' }}
-        />
-      </View>
-
-      <View style={styles.optionalContainer}>
-        <View style={styles.optional}>
-          <Text style={styles.optionalText}>Optional</Text>
-        </View>
-
-        <TouchableOpacity style={styles.diseaseButton}>
-          <Text style={styles.sliderLabel}>Select Disease</Text>
-          <View style={styles.pickercontainer}>
-            <Picker
-              selectedValue={disease}
-              style={styles.picker}
-              onValueChange={(itemValue) => setDisease(itemValue)}
-            >
-              <Picker.Item label="Heart Attack" value="heart-attack" />
-              <Picker.Item label="Seizure" value="seizure" />
-              <Picker.Item label="Stroke" value="stroke" />
-            </Picker>
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.slidermaincontainer}>
-          <Text style={styles.sliderLabel}>Emergency level</Text>
-          <View style={styles.slidermid}>
-            <Text style={styles.sliderLabel}>Low</Text>
-            <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={1}
-              value={emergencyLevel}
-              onValueChange={setEmergencyLevel}
-              minimumTrackTintColor="#1F1E30"
-              maximumTrackTintColor="#1F1E30"
-              thumbTintColor="#1F1E30"
+          <View style={styles.switchContainer}>
+            <Text style={styles.switchLabel}>Share live location</Text>
+            <Switch
+              value={toggle}
+              onValueChange={() => setToggle(!toggle)}
+              thumbColor={toggle ? 'white' : '#f4f3f4'}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
             />
-            <Text style={styles.sliderLabel}>High</Text>
           </View>
-        </View>
 
-        <Text style={styles.sliderLabel}>Describe Symptoms</Text>
-        <TextInput
-          style={styles.textInput}
-          placeholderTextColor={"grey"}
-          placeholder="What you are feeling ..... "
-          multiline
-          onChangeText={setSymptoms}
-          value={symptoms}
-        />
-      </View>
-    </ScrollView>
+          <View style={styles.optionalContainer}>
+            <View style={styles.optional}>
+              <Text style={styles.optionalText}>Optional</Text>
+            </View>
+
+            <TouchableOpacity style={styles.diseaseButton}>
+              <Text style={styles.sliderLabel}>Select Disease</Text>
+              <View style={styles.pickercontainer}>
+                <Picker
+                  selectedValue={disease}
+                  style={styles.picker}
+                  onValueChange={(itemValue) => setDisease(itemValue)}
+                >
+                  <Picker.Item label="Heart Attack" value="heart-attack" />
+                  <Picker.Item label="Seizure" value="seizure" />
+                  <Picker.Item label="Stroke" value="stroke" />
+                </Picker>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.slidermaincontainer}>
+              <Text style={styles.sliderLabel}>Emergency level</Text>
+              <View style={styles.slidermid}>
+                <Text style={styles.sliderLabel}>Low</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={1}
+                  value={emergencyLevel}
+                  onValueChange={setEmergencyLevel}
+                  minimumTrackTintColor="#1F1E30"
+                  maximumTrackTintColor="#1F1E30"
+                  thumbTintColor="#1F1E30"
+                />
+                <Text style={styles.sliderLabel}>High</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sliderLabel}>Describe Symptoms</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholderTextColor={"grey"}
+              placeholder="What you are feeling ..... "
+              multiline
+              onChangeText={setSymptoms}
+              value={symptoms}
+            />
+          </View>
+        </ScrollView>}
+    </>
   );
 };
 const styles = StyleSheet.create({
@@ -264,13 +313,13 @@ const styles = StyleSheet.create({
     top: 10,
     right: 5,
     zIndex: 1,
-    borderWidth:2,
-    borderRadius:50,
+    borderWidth: 2,
+    borderRadius: 50,
     borderColor: "#FF0000",
   },
   signOutButtonText: {
-    width:25,
-    height:25,
+    width: 25,
+    height: 25,
   },
   headerImage: {
     width: '100%',

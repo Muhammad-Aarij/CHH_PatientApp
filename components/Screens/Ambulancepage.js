@@ -8,7 +8,6 @@ import doc2 from '../Images/doc2.png';
 import doc3 from '../Images/doc3.png';
 import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'; // Import Firestore snapshot listener
 import { db } from '../../firebaseConfig';
-import SendIntentAndroid from 'react-native-send-intent';
 import { useFocusEffect } from '@react-navigation/native';
 
 
@@ -18,28 +17,7 @@ const Ambulancepage = ({ navigation, route }) => {
     const [updatedDistance, setUpdatedDistance] = useState(distance);
     const [updatedTime, setUpdatedTime] = useState(time);
 
-    const InitiateCall = async (numb) => {
-        if (Platform.OS === 'android') {
-            const granted = await PermissionsAndroid.request(
-                PermissionsAndroid.PERMISSIONS.CALL_PHONE,
-                {
-                    title: 'App Needs Permission',
-                    message: `Myapp needs phone call permission to dial directly`,
-                    buttonNegative: 'Disagree',
-                    buttonPositive: 'Agree',
-                }
-            );
-
-            if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-                SendIntentAndroid.sendPhoneCall(numb, true);
-            } else {
-                console.log('No permission');
-            }
-        } else if (Platform.OS === 'ios') {
-            Linking.openURL(`tel:${numb}`);
-        }
-    };
-
+   
 
     useFocusEffect(
         React.useCallback(() => {
@@ -47,19 +25,19 @@ const Ambulancepage = ({ navigation, route }) => {
                 try {
                     const driverDocRef = doc(db, 'ambulances', driverId);
                     const docSnapshot = await getDoc(driverDocRef);
-    
+
                     if (docSnapshot.exists()) {
                         const ambulanceData = docSnapshot.data();
-                        const driverLat = ambulanceData.location[0];
-                        const driverLon = ambulanceData.location[1];
-    
+                        const driverLat = ambulanceData.driverLocation.latitude;
+                        const driverLon = ambulanceData.driverLocation.longitude;
+
                         // Patient's location (static for now, could also be dynamic)
                         const patientLat = lat; // Replace with actual patient latitude
                         const patientLon = long;  // Replace with actual patient longitude
-    
+
                         const newDistance = calculateDistance(patientLat, patientLon, driverLat, driverLon);
-                        const newTime = calculateTime(newDistance, 60); // Assume 60 km/h average speed
-    
+                        const newTime = calculateTime(newDistance, 80); // Assume 60 km/h average speed
+
                         setUpdatedDistance(newDistance);
                         console.log("Updated Distance: " + newDistance);
                         setUpdatedTime(newTime);
@@ -70,16 +48,16 @@ const Ambulancepage = ({ navigation, route }) => {
                     Alert.alert('Error', 'Failed to fetch driver data.');
                 }
             };
-    
+
             const intervalId = setInterval(() => {
                 getDriverUpdate();
             }, 2000);
-    
+
             return () => clearInterval(intervalId); // Cleanup interval when the component is unfocused
         }, [driverId, lat, long])
     );
 
-    useFocusEffect(()=>{
+    useFocusEffect(() => {
         const handleBackPress = () => {
             Alert.alert(
                 "Back Button Pressed",
@@ -101,12 +79,10 @@ const Ambulancepage = ({ navigation, route }) => {
 
         // Cleanup interval and back button event listener on component unmount
         return () => {
-           
+
             BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
         };
-    })
-
-
+    });
 
     const calculateDistance = (lat1, lon1, lat2, lon2) => {
         const toRad = (value) => (value * Math.PI) / 180;
@@ -120,10 +96,10 @@ const Ambulancepage = ({ navigation, route }) => {
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distanceInKm = R * c; // Distance in km
         const distanceInM = distanceInKm * 1000; // Convert km to meters
-        
+
         return distanceInM;
     };
-    
+
     const displayDistance = (distanceInM) => {
         if (distanceInM >= 1000) {
             return `${(distanceInM / 1000).toFixed(1)} km`;
@@ -131,11 +107,13 @@ const Ambulancepage = ({ navigation, route }) => {
             return `${distanceInM.toFixed(0)} m`;
         }
     };
-    
+
     const calculateTime = (distance, averageSpeedKmph) => {
-        return (distance / averageSpeedKmph) * 60; // Time in minutes
+        let distanceinKm=distance/1000;
+        console.log(`calculating time`+((distanceinKm / averageSpeedKmph) * 60));
+        return (distanceinKm / averageSpeedKmph) * 60; // Time in minutes
     };
-    
+
     const displayTime = (timeInMinutes) => {
         if (timeInMinutes > 100) {
             const hours = Math.floor(timeInMinutes / 60);
@@ -194,7 +172,7 @@ const Ambulancepage = ({ navigation, route }) => {
                     <Text style={styles.drivingText}>Driving to your destination</Text>
                     <Text style={styles.distanceText}>{displayDistance(updatedDistance)}</Text>
                     <Text style={styles.timeTextt}>Arriving in {displayTime(updatedTime)}</Text>
-                    </View>
+                </View>
 
                 {/* Driver Info */}
                 <View style={styles.driverContainer}>
@@ -212,12 +190,12 @@ const Ambulancepage = ({ navigation, route }) => {
                         </View>
                     </View>
                     <View style={styles.contactIcons}>
-                        <TouchableOpacity style={styles.iconButton} onPress={()=>{
-                            Alert.alert("Note","Message service is unavailable")
+                        <TouchableOpacity style={styles.iconButton} onPress={() => {
+                            Alert.alert("Note", "Message service is unavailable")
                         }}>
                             <Text style={styles.icon}>💬</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton} onPress={() => { InitiateCall(phonenumber) }}>
+                        <TouchableOpacity style={styles.iconButton} >
                             <Text style={styles.icon}>📞</Text>
                         </TouchableOpacity>
                     </View>
@@ -266,7 +244,6 @@ const Ambulancepage = ({ navigation, route }) => {
                                     <Text key={i} style={styles.starEmpty}>★</Text>
                                 ))}
                             </View>
-                            {/* <Text style={styles.doctorRating}>({doctor.rating})</Text> */}
                         </TouchableOpacity>
                     ))}
                 </ScrollView>

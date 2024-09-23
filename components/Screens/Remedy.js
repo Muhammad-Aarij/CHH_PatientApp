@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Pressable, Dimensions, FlatList, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, Pressable, Dimensions, FlatList, TouchableOpacity, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/AntDesign';
 import { HeartAttackFAQs, SeizureFAQs, AsthmaAttackFAQs, StrokeFAQs } from './RemedyList';
+import down from '../Images/down.png';
+import up from '../Images/up.png';
 
 const { width, height } = Dimensions.get('window');
 
@@ -12,7 +14,6 @@ export default function Help({ navigation, disease }) {
         setExpandedId(expandedId === id ? null : id);
     };
 
-    // Function to get FAQs based on the disease prop
     const getFAQs = () => {
         switch (disease) {
             case 'heart-attack':
@@ -24,7 +25,7 @@ export default function Help({ navigation, disease }) {
             case 'stroke':
                 return StrokeFAQs;
             default:
-                return HeartAttackFAQs; // Fallback to heart attack FAQs
+                return HeartAttackFAQs; 
         }
     };
 
@@ -33,7 +34,11 @@ export default function Help({ navigation, disease }) {
             <TouchableOpacity style={styles.tileleft} onPress={() => handlePress(item.id)}>
                 <View style={styles.tileheader}>
                     <Text style={styles.title}>{item.question}</Text>
-                    <Icon name={expandedId === item.id ? "up" : "down"} size={18} color="#222222" />
+                    {/* <Icon name={expandedId === item.id ? "up" : "down"} size={18} color="#222222" /> */}
+                    {expandedId === item.id ?
+                        <Image source={up} style={{ width: 20, height: 20 }}></Image>
+                        :
+                        <Image source={down} style={{ width: 20, height: 20 }}></Image>}
                 </View>
                 {expandedId === item.id && (
                     <Text style={styles.content}>{item.answer}</Text>
@@ -44,9 +49,9 @@ export default function Help({ navigation, disease }) {
 
     return (
         <>
-        <View style={styles.header}>
-            <Text style={styles.headerText}>Help</Text>
-        </View>
+            <View style={styles.header}>
+                <Text style={styles.headerText}>Help</Text>
+            </View>
             <FlatList
                 data={getFAQs()}
                 renderItem={renderItem}
@@ -137,5 +142,6 @@ const styles = StyleSheet.create({
         color: '#555555',
         fontFamily: 'Arial',
         fontSize: width * 0.031,
+        width: width * 0.75,
     },
 });

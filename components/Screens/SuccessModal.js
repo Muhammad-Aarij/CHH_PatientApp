@@ -2,27 +2,20 @@ import React, { useEffect } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import LottieView from 'lottie-react-native';
 
+export default function SuccessModal({ message }) {
+  
 
-export default function CustomModal({ message }) {
     return (
         <View style={[StyleSheet.absoluteFillObject, styles.maincontainer]}>
             <View style={styles.modal}>
-                {message == "Success" ?
-                    <LottieView
-                        style={styles.animation}
-                        source={require('../Images/loading.json')}
-                        autoPlay
-                        loop={true}
-                    />
-                    :
-                    <LottieView
-                        style={styles.animation}
-                        source={require('../Images/loading.json')}
-                        autoPlay
-                        loop={true}
-                    />
-                }
-                <Text style={styles.text}>{message == "Success" ? "Ride Completed Successfully" : "Ride Canceled"}</Text>
+                <LottieView
+                    style={styles.animation}
+                    source={require('../Images/Animation - 1722580375836.json')}
+                    autoPlay
+                    loop={false} // Make sure the animation does not loop
+                />
+                <Text style={styles.text}>{message }</Text>
+                <Text style={{ ...styles.text, fontWeight: "bold" }}>Successfully</Text>
             </View>
         </View>
     );
@@ -37,7 +30,7 @@ const styles = StyleSheet.create({
     },
     modal: {
         backgroundColor: 'white',
-        width: 200, height: 200,
+        width: 250, height: 250,
         padding: 10,
         borderRadius: 10,
         elevation: 5,
@@ -48,6 +41,7 @@ const styles = StyleSheet.create({
     text: {
         marginTop: 10,
         textAlign: 'center',
+        color:"#71797E",
     },
     animation: {
         width: 150,

@@ -9,15 +9,15 @@ import doc3 from '../Images/doc3.png';
 import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'; // Import Firestore snapshot listener
 import { db } from '../../firebaseConfig';
 import { useFocusEffect } from '@react-navigation/native';
-
+import SuccessModal from './SuccessModal';
 
 const Ambulancepage = ({ navigation, route }) => {
     const { driverName, distance, time, driverId, disease, phonenumber, long, lat } = route.params;
     console.log("ID" + driverId);
     const [updatedDistance, setUpdatedDistance] = useState(distance);
     const [updatedTime, setUpdatedTime] = useState(time);
-
-   
+    const [modal, setModal] = useState(time);
+    const [message, setMessage] = useState("");
 
     useFocusEffect(
         React.useCallback(() => {
@@ -109,8 +109,8 @@ const Ambulancepage = ({ navigation, route }) => {
     };
 
     const calculateTime = (distance, averageSpeedKmph) => {
-        let distanceinKm=distance/1000;
-        console.log(`calculating time`+((distanceinKm / averageSpeedKmph) * 60));
+        let distanceinKm = distance / 1000;
+        console.log(`calculating time` + ((distanceinKm / averageSpeedKmph) * 60));
         return (distanceinKm / averageSpeedKmph) * 60; // Time in minutes
     };
 
@@ -130,7 +130,7 @@ const Ambulancepage = ({ navigation, route }) => {
         { name: 'Dr. Sameena Tahir', specialty: 'Cardiologist', rating: 4.0, image: doc3 },
     ];
 
-    const updateDriverStatus = async (status) => {
+    const updateDriverStatus = async (status,msg) => {
         try {
             const driverDocRef = doc(db, 'ambulances', driverId);
             const docSnapshot = await getDoc(driverDocRef);
@@ -140,8 +140,14 @@ const Ambulancepage = ({ navigation, route }) => {
                     status: status, // Set driver status to the passed parameter
                     patientLocation: [0, 0], // Reset patient location to [0, 0]
                 });
+                setMessage(msg);
+                setModal(true);
                 console.log('SuccessDriver status updated to  and patient location reset.');
-                navigation.goBack();
+                setTimeout(() => {
+                    console.log("in TIme Out")
+                    setModal(false);
+                    navigation.goBack();
+                }, 2000);
             } else {
                 Alert.alert('Error', 'Driver not found.');
             }
@@ -152,114 +158,116 @@ const Ambulancepage = ({ navigation, route }) => {
 
 
     return (
-        <ScrollView style={styles.container}>
-            {/* Map Image at the Top */}
-            <Image
-                source={map} // Replace with your map image URL
-                style={styles.mapImage}
-                resizeMode="cover"
-            />
-            <TouchableOpacity style={styles.backButton} onPress={() => {
-                navigation.goBack();
-            }}>
-                <Text style={styles.backButtonText}>←</Text>
-            </TouchableOpacity>
-            <View style={{ backgroundColor: "#1F1E30", borderTopLeftRadius: 30, borderTopRightRadius: 30, flex: 1 }}>
-                <View style={styles.line}></View>
-
-                {/* Driving Info */}
-                <View style={styles.infoContainer}>
-                    <Text style={styles.drivingText}>Driving to your destination</Text>
-                    <Text style={styles.distanceText}>{displayDistance(updatedDistance)}</Text>
-                    <Text style={styles.timeTextt}>Arriving in {displayTime(updatedTime)}</Text>
-                </View>
-
-                {/* Driver Info */}
-                <View style={styles.driverContainer}>
-                    <Image source={driver} style={styles.driverImage} />
-                    <View style={styles.driverInfo}>
-                        <Text style={styles.driverName}>{driverName}</Text>
-                        <Text style={styles.hospitalName}>Shifa Hospital F10</Text>
-                        <View style={styles.ratingContainer}>
-                            {[...Array(3)].map((_, i) => (
-                                <Text key={i} style={styles.star}>★</Text>
-                            ))}
-                            {[...Array(2)].map((_, i) => (
-                                <Text key={i} style={styles.starEmpty}>★</Text>
-                            ))}
-                        </View>
-                    </View>
-                    <View style={styles.contactIcons}>
-                        <TouchableOpacity style={styles.iconButton} onPress={() => {
-                            Alert.alert("Note", "Message service is unavailable")
-                        }}>
-                            <Text style={styles.icon}>💬</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton} >
-                            <Text style={styles.icon}>📞</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-                <View style={{ width: "100%", alignItems: "flex-end", paddingHorizontal: 20, marginVertical: 5, }}>
-                    <TouchableOpacity onPress={() => {
-                        navigation.navigate('Remedy', { disease: disease });
+        <>
+            {modal ?
+                <SuccessModal message={message} />
+                :
+                <ScrollView style={styles.container}>
+                    <Image
+                        source={map}
+                        style={styles.mapImage}
+                        resizeMode="cover"
+                    />
+                    <TouchableOpacity style={styles.backButton} onPress={() => {
+                        navigation.goBack();
                     }}>
-                        <Text style={{ color: "#33ccee", fontFamily: "sans-serif-condensed" }}>+ Get Precautinary Measures</Text>
+                        <Text style={styles.backButtonText}>←</Text>
                     </TouchableOpacity>
-                </View>
-                <View style={{ width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly", paddingHorizontal: 20, marginVertical: 10, }}>
-                    <TouchableOpacity style={styles.btn} onPress={() => updateDriverStatus("free")}>
-                        <Text style={styles.btnText}>
-                            Cancel
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={{ ...styles.btn, backgroundColor: "white" }} onPress={() => updateDriverStatus("free")}>
-                        <Text style={{ ...styles.btnText, color: "#1F1E30" }}>
-                            Complete
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                    <View style={{ backgroundColor: "#1F1E30", borderTopLeftRadius: 30, borderTopRightRadius: 30, flex: 1 }}>
+                        <View style={styles.line}></View>
 
+                        {/* Driving Info */}
+                        <View style={styles.infoContainer}>
+                            <Text style={styles.drivingText}>Driving to your destination</Text>
+                            <Text style={styles.distanceText}>{displayDistance(updatedDistance)}</Text>
+                            <Text style={styles.timeTextt}>Arriving in {displayTime(updatedTime)}</Text>
+                        </View>
 
-                {/* Available Doctors Section */}
-                <Text style={styles.availableDoctorsText}>Available Doctors</Text>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.doctorsContainer}
-                    style={{ paddingBottom: 10, }}
-                >
-                    {doctors.map((doctor, index) => (
-                        <TouchableOpacity key={index} style={styles.doctorCard} onPress={() => {
-                            navigation.navigate("DoctorProfile");
-                        }}>
-                            <Image source={doctor.image} style={styles.doctorImage} />
-                            <Text style={styles.doctorName} numberOfLines={1}>{doctor.name}</Text>
-                            <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
-                            <View style={styles.ratingContainer}>
-                                {[...Array(Math.floor(doctor.rating))].map((_, i) => (
-                                    <Text key={i} style={styles.star}>★</Text>
-                                ))}
-                                {[...Array(5 - Math.floor(doctor.rating))].map((_, i) => (
-                                    <Text key={i} style={styles.starEmpty}>★</Text>
-                                ))}
+                        {/* Driver Info */}
+                        <View style={styles.driverContainer}>
+                            <Image source={driver} style={styles.driverImage} />
+                            <View style={styles.driverInfo}>
+                                <Text style={styles.driverName}>{driverName}</Text>
+                                <Text style={styles.hospitalName}>Shifa Hospital F10</Text>
+                                <View style={styles.ratingContainer}>
+                                    {[...Array(3)].map((_, i) => (
+                                        <Text key={i} style={styles.star}>★</Text>
+                                    ))}
+                                    {[...Array(2)].map((_, i) => (
+                                        <Text key={i} style={styles.starEmpty}>★</Text>
+                                    ))}
+                                </View>
                             </View>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
-        </ScrollView>
+                            <View style={styles.contactIcons}>
+                                <TouchableOpacity style={styles.iconButton} onPress={() => {
+                                    Alert.alert("Note", "Message service is unavailable")
+                                }}>
+                                    <Text style={styles.icon}>💬</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.iconButton} >
+                                    <Text style={styles.icon}>📞</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <View style={{ width: "100%", alignItems: "flex-end", paddingHorizontal: 20, marginVertical: 5, }}>
+                            <TouchableOpacity onPress={() => {
+                                navigation.navigate('Remedy', { disease: disease });
+                            }}>
+                                <Text style={{ color: "#33ccee", fontFamily: "sans-serif-condensed" }}>+ Get Precautinary Measures</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly", paddingHorizontal: 20, marginVertical: 10, }}>
+                            <TouchableOpacity style={styles.btn} onPress={() => updateDriverStatus("free","Ride Canceled")}>
+                                <Text style={styles.btnText}>
+                                    Cancel
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={{ ...styles.btn, backgroundColor: "white" }} onPress={() => updateDriverStatus("free","Ride Completed")}>
+                                <Text style={{ ...styles.btnText, color: "#1F1E30" }}>
+                                    Complete
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+
+                        {/* Available Doctors Section */}
+                        <Text style={styles.availableDoctorsText}>Available Doctors</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.doctorsContainer}
+                            style={{ paddingBottom: 10, }}
+                        >
+                            {doctors.map((doctor, index) => (
+                                <TouchableOpacity key={index} style={styles.doctorCard} onPress={() => {
+                                    navigation.navigate("DoctorProfile");
+                                }}>
+                                    <Image source={doctor.image} style={styles.doctorImage} />
+                                    <Text style={styles.doctorName} numberOfLines={1}>{doctor.name}</Text>
+                                    <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
+                                    <View style={styles.ratingContainer}>
+                                        {[...Array(Math.floor(doctor.rating))].map((_, i) => (
+                                            <Text key={i} style={styles.star}>★</Text>
+                                        ))}
+                                        {[...Array(5 - Math.floor(doctor.rating))].map((_, i) => (
+                                            <Text key={i} style={styles.starEmpty}>★</Text>
+                                        ))}
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </ScrollView>}
+        </>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        // backgroundColor: '#1F1E30',
     },
     btn: {
         paddingVertical: 7,
-        // paddingHorizontal:20,
         width: 150,
         borderWidth: 1.5,
         borderColor: "white",
@@ -297,7 +305,6 @@ const styles = StyleSheet.create({
         marginTop: 10,
         fontSize: 14,
         fontFamily: "sans-serif-light",
-        // fontWeight: 'bold',
         color: '#FFFFFF',
     },
     distanceText: {
@@ -321,7 +328,6 @@ const styles = StyleSheet.create({
         width: 70,
         height: 70,
         borderRadius: 13,
-        // borderWidth:2,
         objectFit: "contain",
 
     },
@@ -355,9 +361,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
     },
     iconButton: {
-        // borderWidth:2,
-        // borderRadius:50,
-        // borderColor:"#1F1E30",
         marginLeft: 10,
         padding: 3,
     },
@@ -389,7 +392,6 @@ const styles = StyleSheet.create({
         width: 90,
         height: 90,
         objectFit: "contain",
-        // borderRadius: 40,
     },
     doctorName: {
         fontSize: 16,

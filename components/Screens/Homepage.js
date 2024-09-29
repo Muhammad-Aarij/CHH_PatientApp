@@ -140,7 +140,7 @@ const Homepage = ({ navigation }) => {
         console.log("Ambulance Data: ", ambulanceData);
 
         if (!ambulanceData.driverLocation) {
-          console.warn('Missing driverLocation for ambulance:', doc.id);
+          // console.warn('Missing driverLocation for ambulance:', doc.id);
           return;
         }
 
@@ -148,7 +148,7 @@ const Homepage = ({ navigation }) => {
         const longitude = ambulanceData.driverLocation.longitude;
 
         if (latitude === undefined || longitude === undefined) {
-          console.warn('Missing latitude or longitude for ambulance:', doc.id);
+          // console.warn('Missing latitude or longitude for ambulance:', doc.id);
           return;
         }
 
